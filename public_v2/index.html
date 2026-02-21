@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS Academy Local - Multi Problem</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="lib/codemirror/codemirror.min.css">
+    <link rel="stylesheet" href="lib/codemirror/theme/dracula.min.css">
+    <script src="lib/codemirror/codemirror.min.js"></script>
+    <script src="lib/codemirror/mode/clike.min.js"></script>
+    <script src="lib/codemirror/addon/closebrackets.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>CS Academy Local - Multi Problem</h1>
+            <div class="problem-selector">
+                <label for="problem-select">Problem:</label>
+                <select id="problem-select">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="actions">
+                <button id="run-btn" class="btn primary">Run Code</button>
+                <button id="submit-btn" class="btn secondary">Submit Solution</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="problem-description-pane">
+                <div class="pane-header">Problem Description</div>
+                <div id="problem-description" class="problem-description">
+                    Select a problem to see its description...
+                </div>
+                <div class="sample-io">
+                    <div class="sample-section">
+                        <strong>Sample Input:</strong>
+                        <pre id="sample-input"></pre>
+                    </div>
+                    <div class="sample-section">
+                        <strong>Sample Output:</strong>
+                        <pre id="sample-output"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="editor-pane">
+                <div class="pane-header">Source Code (C++)</div>
+                <textarea id="code-editor"></textarea>
+            </div>
+
+            <div class="io-pane">
+                <div class="input-section">
+                    <div class="pane-header">Input</div>
+                    <textarea id="input-area" placeholder="Enter input here..."></textarea>
+                </div>
+                <div class="output-section">
+                    <div class="pane-header">Output</div>
+                    <div id="output-area" class="output-display"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

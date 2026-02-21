@@ -1,0 +1,126 @@
+# Explication du Projet Ajiz (Interface Locale pour CS Academy)
+
+Ce document explique le fonctionnement de chaque partie du site, du backend (serveur) au frontend (interface utilisateur) et l'intégration avec l'API CS Academy.
+
+## 1. Vue d'ensemble
+
+Le projet est une application web locale qui permet d'écrire, tester ("Run") et soumettre ("Submit") du code sur CS Academy sans utiliser leur interface web. Il agit comme un **proxy** :
+*   Le frontend envoie les requêtes à votre serveur local.
+*   Le serveur local communique avec CS Academy via leur API et WebSocket.
+
+---
+
+## 2. Backend (`server.py`)
+
+Le backend est écrit en Python avec le framework **Flask**. Il gère deux tâches principales : servir l'interface web et communiquer avec CS Academy.
+
+### Fonctionnalités Clés :
+
+1.  **Serveur Web (Flask)** :
+    *   Sert les fichiers statiques (`index.html`, `style.css`, `script.js`) depuis le dossier `public/`.
+    *   Expose deux API pour le frontend : `/api/run` et `/api/submit`.
+
+2.  **Connexion WebSocket (`start_websocket`)** :
+    *   Code une connexion persistante avec `wss://ws3.csacademy.com/`.
+    *   S'exécute dans un **thread séparé** pour ne pas bloquer le serveur Flask.
+    *   **Abonnement (`on_open`)** : Envoie des messages `s ...` pour s'abonner aux canaux d'événements (global et session utilisateur). C'est crucial pour recevoir les résultats des tests.
+    *   **Gestion des Messages (`on_message`)** :
+        *   Analyse les messages reçus de CS Academy.
+        *   Détecte les résultats de tests (`runResults`) et les statuts de soumission (`finished`, `test_results`).
+        *   Stocke ces résultats dans un cache global (`RESULTS_CACHE`).
+
+3.  **API `/api/run`** :
+    *   Reçoit le code et l'entrée utilisateur.
+    *   Envoie une requête `POST` à `https://csacademy.com/eval/submit_custom_run/`.
+    *   Attend (polling) que le résultat apparaisse dans `RESULTS_CACHE` (rempli par le WebSocket).
+    *   Renvoie le résultat (sortie standard/erreur) au frontend.
+
+4.  **API `/api/submit`** :
+    *   Reçoit le code source.
+    *   Envoie une requête `POST` à `https://csacademy.com/eval/submit_evaljob/`.
+    *   Attend que le WebSocket reçoive l'événement `finished` ou `done`.
+    *   Renvoie le score final et les détails des tests au frontend.
+
+---
+
+## 3. Frontend (`public/`)
+
+### `index.html`
+*   La structure de la page.
+*   Utilise `CodeMirror` (version locale) pour offrir un éditeur de code avec coloration syntaxique.
+*   Contient les boutons "Run" et "Submit", ainsi que les zones pour l'entrée (`Input`) et la sortie (`Output`).
+
+### `script.js`
+Ce fichier contient la logique côté client :
+1.  **Initialisation** : Configure l'éditeur CodeMirror.
+2.  **Bouton "Run"** :
+    *   Récupère le code de l'éditeur.
+    *   Envoie une requête `POST /api/run` au serveur local.
+    *   Affiche la réponse : si succès, affiche la sortie (`stdout`) ; si erreur, affiche l'erreur (`stderr`).
+    *   *Note* : Concatène la sortie standard et l'erreur pour une lecture facile sans wrapper.
+3.  **Bouton "Submit"** :
+    *   Envoie une requête `POST /api/submit`.
+    *   Affiche le score retourné par le serveur (ex: "Score: 100").
+    *   Affiche "Submission Received" si le serveur met trop de temps à répondre (timeout).
+
+### `style.css`
+*   Définit le thème sombre ("Dark Mode") et la mise en page responsive.
+*   Style premium pour les boutons (dégradés, hover effects) et l'éditeur.
+
+---
+
+## 4. Intégration API & WebSocket
+
+Le système repose sur l'imitation du comportement du navigateur sur le site CS Academy.
+
+*   **Authentification** : Utilise les cookies (`csrftoken`, `crossSessionId`) et l'ID de session définis dans `server.py`. Ces informations doivent être mises à jour si la session expire.
+*   **Protocole WebSocket** :
+    *   Les messages envoyés sont au format `s {channel} {length+2}`.
+    *   Les messages reçus sont parsés pour extraire les objets JSON imbriqués.
+*   **Endpoints** :
+    *   `submit_custom_run` : Pour l'exécution rapide avec entrée personnalisée.
+    *   `submit_evaljob` : Pour la soumission officielle qui compte pour le score.
+
+---
+
+## Résumé du Flux
+
+1.  **Utilisateur** clique sur "Run".
+2.  **Frontend** -> `POST /api/run` -> **Backend**.
+3.  **Backend** -> `POST CS Academy API` -> Récupère `customRunId`.
+4.  **Backend** attend.
+5.  **CS Academy** -> Envoie résultat via **WebSocket**.
+6.  **Backend** (Thread WS) -> Reçoit le message -> Met à jour `RESULTS_CACHE`.
+7.  **Backend** (Route API) -> Voit le résultat dans le cache -> Renvoie au **Frontend**.
+8.  **Frontend** affiche le résultat.
+
+---
+
+# 👶 Explication Pour Un Enfant (Le Walkie-Talkie)
+
+Imagine que tu es dans un grand jeu de cache-cache avec CS Academy.
+
+### 1. Le WebSocket (Le Téléphone)
+C'est comme si tu avais un **téléphone ouvert en ligne directe** avec le juge du jeu (CS Academy). Tu ne raccroches jamais, tu restes toujours au bout du fil pour entendre ce qu'il dit.
+
+### 2. L'Abonnement (`on_open`) (Choisir la Chaîne) de Talkie-Walkie
+Imagine que ce téléphone est un Talkie-Walkie avec plein de chaînes :
+*   Canal 1 : Les news de tout le monde.
+*   Canal 221818 : **Tes résultats personnels**.
+
+Quand tu allumes ton Talkie-Walkie (`on_open`), tu dois dire : **"Allô, je veux écouter le Canal 221818 !"**.
+Si le serveur n'avait pas cette consigne, il parlerait dans le vide sur le mauvais canal, et tu n'entendrais jamais ton résultat. C'est ça, "l'Abonnement" (`subscribe`).
+
+### 3. La Gestion des Messages (`on_message`) (L'Ardoise Magique)
+Une fois que tu écoutes le bon canal :
+*   Le juge dit : "Hé, pour le devoir #149, tu as eu 100/100 !".
+*   Toi, tu as une **Ardoise Magique** (le Cache `RESULTS_CACHE`).
+*   Dès que tu entends le résultat, tu l'écris vite sur l'ardoise : "Devoir #149 = 100/100".
+
+Pendant ce temps, ton ami (le bouton "Submit" du site) te demande toutes les secondes : "Alors ? Alors ?".
+Dès que tu as écrit le résultat sur l'ardoise, tu lui réponds : "C'est bon, j'ai eu 100 !".
+
+**Résumé :**
+1.  Tu appelles le juge (**WebSocket**).
+2.  Tu lui dis "Parle-moi sur MA fréquence" (**Abonnement**).
+3.  Quand il parle, tu notes la note sur un tableau (**Message Handling / Cache**).
